@@ -1,4 +1,4 @@
-## -----------------------------------------------------------------------------------------------------
+## ----------------------------------------------------------------------------------------------------------------------
 ## accessibility_example.r
 ## Author: Amelia Bertozzi-Villa, Institute for Disease Modeling and University of Oxford
 ## Date: April 27th 2018
@@ -6,10 +6,11 @@
 ##               big mountain in Colorado State. Adapted from Dan Weiss' script at
 ##               https://map.ox.ac.uk/research-project/accessibility_to_cities/
 ##
-## Citation: D.J. Weiss, A. Nelson, H.S. Gibson, W. Temperley, S. Peedell, A. Lieber, M. Hancher, E. Poyart, S. Belchior, N. Fullman, B. Mappin, U. Dalrymple, J. Rozier, 
-##           T.C.D. Lucas, R.E. Howes, L.S. Tusting, S.Y. Kang, E. Cameron, D. Bisanzio, K.E. Battle, S. Bhatt, and P.W. Gething. A global map of travel time to cities to assess 
+## Citation: D.J. Weiss, A. Nelson, H.S. Gibson, W. Temperley, S. Peedell, A. Lieber, M. Hancher, E. Poyart, S. Belchior,
+##           N. Fullman, B. Mappin, U. Dalrymple, J. Rozier, T.C.D. Lucas, R.E. Howes, L.S. Tusting, S.Y. Kang, E. Cameron,
+##           D. Bisanzio, K.E. Battle, S. Bhatt, and P.W. Gething. A global map of travel time to cities to assess 
 ##           inequalities in accessibility in 2015. (2018). Nature. doi:10.1038/nature25181.
-## -----------------------------------------------------------------------------------------------------
+## ----------------------------------------------------------------------------------------------------------------------------
 
 rm(list=ls())
 
@@ -20,27 +21,20 @@ library(rje)
 library(ggplot2)
 library(malariaAtlas)
 
-# Plot defaults
+## Plot defaults
 theme_set(theme_minimal(base_size=14))
 
-# Set to TRUE if a transition matrix (T.GC) has already been created and saved.   
-transition.matrix.exists.flag <- F
-
-## Root Directories
+## Directories
 main.dir <- "./"
-out.dir <- main.dir
+setwd(main.dir)
 
 ## Input Files
-points.filename <- paste0(main.dir, "peaks.csv")
+points.filename <- "peaks.csv"
 
 ## Output Files
-T.filename <- paste0(out.dir, 'transmission.matrix.rds')
-T.GC.filename <- paste0(out.dir, 'geocorrected.transition.matrix.rds')
-output.raster.filename <- paste0(out.dir, 'travel.times.tif')
-
-## Point locations
-point.locations <- fread(file = points.filename)
-setnames(point.locations, c("lon", "lat"), c("X_COORD", "Y_COORD"))
+T.filename <- 'transmission.matrix.rds'
+T.GC.filename <- 'geocorrected.transition.matrix.rds'
+output.raster.filename <- 'travel.times.tif'
 
 ## Shapefile
 
@@ -48,43 +42,66 @@ setnames(point.locations, c("lon", "lat"), c("X_COORD", "Y_COORD"))
 USA.shp <- getShp(ISO = "USA", admin_level = "admin1")
 analysis.shp <- USA.shp[USA.shp@data$name=="Colorado",]
 
-# Keep only point coorinates within the shapefile bounds
-coordinates(point.locations) <- ~ X_COORD + Y_COORD
-proj4string(point.locations) <- proj4string(analysis.shp)
-overlap <- over(point.locations, analysis.shp)
-point.locations <- point.locations[!is.na(overlap$gid),]
-points <- as.matrix(point.locations@coords) # save coordinates as a matrix for the accessibility function
-
+png("shape.png", width=4, height=3, units = "in", res=120)
+plot(analysis.shp, main="Shape for Clipping")
+graphics.off()
 
 ## Friction:
 
 # Extract friction surface, clipped to shapefile
 friction <- getRaster(surface = "A global friction surface enumerating land-based travel speed for a nominal year 2015",
                       shp = analysis.shp)
+png("friction.png", width=5, height=3, units = "in", res=120)
+autoplot_MAPraster(friction)
+graphics.off()
 
-# Make the graph and the geocorrected version of the graph (or read in the latter).
-if (transition.matrix.exists.flag) {
-  # Read in the transition matrix object if it has been pre-computed
-  T.GC <- readRDS(T.GC.filename)
-} else {
-  # Make and geocorrect the transition matrix (i.e., the graph)
-  T <- transition(friction, function(x) 1/mean(x), 8) # RAM intensive, can be very slow for large areas
-  saveRDS(T, T.filename)
-  T.GC <- geoCorrection(T)                    
-  saveRDS(T.GC, T.GC.filename)
-}
+# Make and geocorrect the transition matrix (i.e., the graph)
+T <- transition(friction, function(x) 1/mean(x), 8) # RAM intensive, can be very slow for large areas
+T.GC <- geoCorrection(T)                    
 
+
+## Point locations
+point.locations <- read.csv(file = points.filename)
+names(point.locations) <- c("X_COORD", "Y_COORD", "name")
+
+# Keep only point coordinates within the shapefile bounds
+coordinates(point.locations) <- ~ X_COORD + Y_COORD
+proj4string(point.locations) <- proj4string(analysis.shp)
+overlap <- over(point.locations, analysis.shp)
+point.locations <- point.locations[!is.na(overlap$gid),]
+
+# Convert coordinates to a matrix for the accessibility function
+points <- as.matrix(point.locations@coords) 
+
+## Accessibility
 # Run the accumulated cost algorithm to make the accessibility map
 access.raster <- accCost(T.GC, points)
-writeRaster(access.raster, output.raster.filename)
 
 # Plot the resulting raster, overlaid with point locations
-p <- autoplot_MAPraster(access.raster, shp_df=analysis.shp, printed=F)
+p <- autoplot_MAPraster(access.raster, 
+                        shp_df=analysis.shp, printed=F)
 
-p[[1]] + geom_point(data=data.frame(point.locations@coords), aes(x=X_COORD, y=Y_COORD)) +
-  scale_fill_gradientn(colors = rev(cubeHelix(gamma=1.0, start=1.5, r=-1.0, hue=1.5, n=16)), 
-                       name="Minutes \n of Travel") + 
-  ggtitle("Travel Time to Most Accessible Peak") +
-  theme(axis.text = element_blank(),
-        panel.border = element_rect(fill = NA, color = "white"))
-  
+full_plot <- p[[1]] + 
+             geom_point(data=data.frame(point.locations@coords), 
+                                 aes(x=X_COORD, y=Y_COORD)) +
+             scale_fill_gradientn(colors=rev(cubeHelix(gamma=1.0, 
+                                                       start=1.5, 
+                                                       r=-1.0, 
+                                                       hue=1.5, 
+                                                       n=16)), 
+                                  name="Minutes \n of Travel") + 
+             ggtitle("Travel Time to Most Accessible Peak") +
+             theme(axis.text=element_blank(),
+                   panel.border=element_rect(fill=NA, color="white"))
+
+png("windom.png", width=5, height=3, units="in", res=120)
+plot(full_plot + xlim(-108, -107) + ylim(37, 38)) 
+graphics.off()
+
+## Save Outputs
+saveRDS(T, T.filename)
+saveRDS(T.GC, T.GC.filename)
+writeRaster(access.raster, output.raster.filename)
+png("travel_times.png", width=10, height=6, units="in", res=120)
+  print(full_plot)
+graphics.off()
