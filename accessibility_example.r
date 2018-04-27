@@ -36,24 +36,21 @@ T.filename <- 'transmission.matrix.rds'
 T.GC.filename <- 'geocorrected.transition.matrix.rds'
 output.raster.filename <- 'travel.times.tif'
 
+
 ## Shapefile
 
 #  Use malariaAtlas to download a shapefile for Colorado state
 USA.shp <- getShp(ISO = "USA", admin_level = "admin1")
 analysis.shp <- USA.shp[USA.shp@data$name=="Colorado",]
-
-png("shape.png", width=4, height=3, units = "in", res=120)
 plot(analysis.shp, main="Shape for Clipping")
-graphics.off()
+
 
 ## Friction:
 
 # Extract friction surface, clipped to shapefile
 friction <- getRaster(surface = "A global friction surface enumerating land-based travel speed for a nominal year 2015",
                       shp = analysis.shp)
-png("friction.png", width=5, height=3, units = "in", res=120)
 autoplot_MAPraster(friction)
-graphics.off()
 
 # Make and geocorrect the transition matrix (i.e., the graph)
 T <- transition(friction, function(x) 1/mean(x), 8) # RAM intensive, can be very slow for large areas
@@ -73,6 +70,7 @@ point.locations <- point.locations[!is.na(overlap$gid),]
 # Convert coordinates to a matrix for the accessibility function
 points <- as.matrix(point.locations@coords) 
 
+
 ## Accessibility
 # Run the accumulated cost algorithm to make the accessibility map
 access.raster <- accCost(T.GC, points)
@@ -80,7 +78,6 @@ access.raster <- accCost(T.GC, points)
 # Plot the resulting raster, overlaid with point locations
 p <- autoplot_MAPraster(access.raster, 
                         shp_df=analysis.shp, printed=F)
-
 full_plot <- p[[1]] + 
              geom_point(data=data.frame(point.locations@coords), 
                                  aes(x=X_COORD, y=Y_COORD)) +
@@ -93,10 +90,8 @@ full_plot <- p[[1]] +
              ggtitle("Travel Time to Most Accessible Peak") +
              theme(axis.text=element_blank(),
                    panel.border=element_rect(fill=NA, color="white"))
+plot(full_plot) 
 
-png("windom.png", width=5, height=3, units="in", res=120)
-plot(full_plot + xlim(-108, -107) + ylim(37, 38)) 
-graphics.off()
 
 ## Save Outputs
 saveRDS(T, T.filename)
