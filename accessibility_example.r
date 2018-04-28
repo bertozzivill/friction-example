@@ -40,7 +40,7 @@ output.raster.filename <- 'travel.times.tif'
 ## Shapefile
 
 #  Use malariaAtlas to download a shapefile for Colorado state
-USA.shp <- getShp(ISO = "USA", admin_level = "admin1")
+USA.shp <- malariaAtlas::getShp(ISO = "USA", admin_level = "admin1")
 analysis.shp <- USA.shp[USA.shp@data$name=="Colorado",]
 plot(analysis.shp, main="Shape for Clipping")
 
@@ -48,13 +48,13 @@ plot(analysis.shp, main="Shape for Clipping")
 ## Friction:
 
 # Extract friction surface, clipped to shapefile
-friction <- getRaster(surface = "A global friction surface enumerating land-based travel speed for a nominal year 2015",
-                      shp = analysis.shp)
-autoplot_MAPraster(friction)
+friction <- malariaAtlas::getRaster(surface = "A global friction surface enumerating land-based travel speed for a nominal year 2015",
+                                    shp = analysis.shp)
+malariaAtlas::autoplot_MAPraster(friction)
 
 # Make and geocorrect the transition matrix (i.e., the graph)
-T <- transition(friction, function(x) 1/mean(x), 8) # RAM intensive, can be very slow for large areas
-T.GC <- geoCorrection(T)                    
+T <- gdistance::transition(friction, function(x) 1/mean(x), 8) # RAM intensive, can be very slow for large areas
+T.GC <- gdistance::geoCorrection(T)                    
 
 
 ## Point locations
@@ -73,19 +73,19 @@ points <- as.matrix(point.locations@coords)
 
 ## Accessibility
 # Run the accumulated cost algorithm to make the accessibility map
-access.raster <- accCost(T.GC, points)
+access.raster <- gdistance::accCost(T.GC, points)
 
 # Plot the resulting raster, overlaid with point locations
-p <- autoplot_MAPraster(access.raster, 
+p <- malariaAtlas::autoplot_MAPraster(access.raster, 
                         shp_df=analysis.shp, printed=F)
 full_plot <- p[[1]] + 
              geom_point(data=data.frame(point.locations@coords), 
                                  aes(x=X_COORD, y=Y_COORD)) +
-             scale_fill_gradientn(colors=rev(cubeHelix(gamma=1.0, 
-                                                       start=1.5, 
-                                                       r=-1.0, 
-                                                       hue=1.5, 
-                                                       n=16)), 
+             scale_fill_gradientn(colors=rev(rje::cubeHelix(gamma=1.0, 
+                                                            start=1.5, 
+                                                            r=-1.0, 
+                                                            hue=1.5, 
+                                                            n=16)), 
                                   name="Minutes \n of Travel") + 
              ggtitle("Travel Time to Most Accessible Peak") +
              theme(axis.text=element_blank(),
