@@ -20,6 +20,7 @@ library(abind)
 library(rje)
 library(ggplot2)
 library(malariaAtlas)
+library(sp)
 
 ## Plot defaults
 theme_set(theme_minimal(base_size=14))
@@ -39,11 +40,19 @@ output.raster.filename <- 'travel.times.tif'
 
 ## Shapefile
 
-#  Use malariaAtlas to download a shapefile for Colorado state
-USA.shp <- malariaAtlas::getShp(ISO = "USA", admin_level = "admin1")
-analysis.shp <- USA.shp[USA.shp@data$name=="Colorado",]
-plot(analysis.shp, main="Shape for Clipping")
+##----------------------------------------------------------------
+#  Use malariaAtlas to download a shapefile for Colorado state 
+# (currently not working, see issue 32 on the malariaAtlas github https://github.com/malaria-atlas-project/malariaAtlas)
+# USA.shp <- malariaAtlas::getShp(ISO = "USA", admin_level = "admin1")
+# analysis.shp <- USA.shp[USA.shp@data$name=="Colorado",]
+# plot(analysis.shp, main="Shape for Clipping")
+##----------------------------------------------------------------
 
+# Until the above bug is fixed: use the GADM shapefiles added to this repo to access the Colorado state shapefile
+
+USA.shp <- readRDS("gadm36_USA_1_sp.rds")
+analysis.shp <- USA.shp[USA.shp@data$NAME_1=="Colorado",]
+plot(analysis.shp, main="Shape for Clipping")
 
 ## Friction:
 
@@ -65,7 +74,7 @@ names(point.locations) <- c("X_COORD", "Y_COORD", "name")
 coordinates(point.locations) <- ~ X_COORD + Y_COORD
 proj4string(point.locations) <- proj4string(analysis.shp)
 overlap <- over(point.locations, analysis.shp)
-point.locations <- point.locations[!is.na(overlap$gid),]
+point.locations <- point.locations[!is.na(overlap$GID_0),] # todo: change back to overlap$gid when moving back to malariaAtlas shapefile
 
 # Convert coordinates to a matrix for the accessibility function
 points <- as.matrix(point.locations@coords) 
@@ -96,7 +105,7 @@ plot(full_plot)
 ## Save Outputs
 saveRDS(T, T.filename)
 saveRDS(T.GC, T.GC.filename)
-writeRaster(access.raster, output.raster.filename)
+writeRaster(access.raster, output.raster.filename, overwrite=TRUE)
 png("travel_times.png", width=10, height=6, units="in", res=120)
   print(full_plot)
 graphics.off()
